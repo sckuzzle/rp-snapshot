@@ -2,7 +2,12 @@
 """
 Created on Sun Aug 20 19:03:03 2023
 
-@author: Cruncher
+script for creating historical staking snapshots for Rocket Pool
+
+@author: sckuzzle
+
+contains components used from a staking snapshot creation tool by Valdorff at 
+https://github.com/Valdorff/rp-thoughts/blob/main/rpl_staking/get_staking_snapshot_2.py
 """
 
 import time
@@ -13,6 +18,8 @@ import json
 from web3 import Web3, HTTPProvider
 import pandas as pd
 
+LATEST_INTERVAL = 27
+
 def get_network_df():
   df = pd.read_csv('staking_snapshot.csv')
   return df
@@ -22,23 +29,27 @@ def get_index():
   return df
 
 def create_snapshots_at_interval():
+  """wrapper to loop through and create a staking snapshot at each interval point specified"""
   RocketStorage, RocketNodeManager, RocketNodeStaking, RocketNetworkPrices, RocketTokenRPL, RocketRewardsPool, RocketRETH, wETH = get_contracts('latest')
-  for interval in range(9, 10):
-    print(f'{interval=}')
+  for interval in range(27, LATEST_INTERVAL+1):
     block_id = RocketRewardsPool.functions.getClaimIntervalExecutionBlock(interval).call()
+    print(f'{interval=} {block_id=}')
     create_snapshot(block_id)
 
 def create_index():
+  
   RocketStorage, RocketNodeManager, RocketNodeStaking, RocketNetworkPrices, RocketTokenRPL, RocketRewardsPool, RocketRETH, wETH = get_contracts('latest')
-  num_nodes = RocketNodeManager.functions.getNodeCount().call(block_identifier = 'latest')
+  block_id = RocketRewardsPool.functions.getClaimIntervalExecutionBlock(LATEST_INTERVAL).call()
+  RocketStorage, RocketNodeManager, RocketNodeStaking, RocketNetworkPrices, RocketTokenRPL, RocketRewardsPool, RocketRETH, wETH = get_contracts(block_id)
+  num_nodes = RocketNodeManager.functions.getNodeCount().call(block_identifier = block_id)
   addr_ls = []
   with_addr_ls = []
   
   for offset in range(0, num_nodes, 100):
-    node_ls = RocketNodeManager.functions.getNodeAddresses(offset, 100).call(block_identifier = 'latest')
+    node_ls = RocketNodeManager.functions.getNodeAddresses(offset, 100).call(block_identifier = block_id)
     
     for addr in node_ls:
-        with_addr = RocketStorage.functions.getNodeWithdrawalAddress(addr).call(block_identifier = 'latest')
+        with_addr = RocketStorage.functions.getNodeWithdrawalAddress(addr).call(block_identifier = block_id)
         addr_ls.append(addr)
         with_addr_ls.append(with_addr)
         
@@ -51,6 +62,7 @@ def create_index():
   
   
 def get_contracts(block_id = 'latest'):
+  """Finds the address for each contract, fetches the abi for that contract, and returns web3 contract objects at the given block_id"""
 
   if block_id =='latest':  
     NODE_IP = os.environ['node_ip']
@@ -122,6 +134,7 @@ def get_contracts(block_id = 'latest'):
   return RocketStorage, RocketNodeManager, RocketNodeStaking, RocketNetworkPrices, RocketTokenRPL, RocketRewardsPool, RocketRETH, wETH
 
 def create_snapshot(block):
+  """Creates a snapshots at the given block and saves it at {block}.csv"""
   RocketStorage, RocketNodeManager, RocketNodeStaking, RocketNetworkPrices, RocketTokenRPL, RocketRewardsPool, RocketRETH, wETH = get_contracts(block)
   
   
@@ -172,15 +185,18 @@ def create_snapshot(block):
   df.to_csv(f'./snapshot/{block}.csv')
   
 def create_prices():
+  """Gathers RPL ratio at the beginning of each interval and saves it to a csv"""
   prices = {}
   RocketStorage, RocketNodeManager, RocketNodeStaking, RocketNetworkPrices, RocketTokenRPL, RocketRewardsPool, RocketRETH, wETH = get_contracts('latest')
-  for interval in range(0, 26):
+  for interval in range(0, 28):
     print(f'{interval=}')
     block_id = RocketRewardsPool.functions.getClaimIntervalExecutionBlock(interval).call()
     time.sleep(1.5)
     _, _, _, RocketNetworkPrices,_, _, _, _ = get_contracts(block_id)
     rpl_price = RocketNetworkPrices.functions.getRPLPrice().call(block_identifier = block_id) / 1e18
     prices[block_id] = rpl_price
+  prices = pd.DataFrame.from_dict(prices, orient = 'index', columns = ['ratio'])
+  prices.to_csv(f'./snapshot/prices.csv')
   return prices
 
 
@@ -190,5 +206,5 @@ if __name__=='__main__':
   
   
   # create_index()
-  # create_snapshots_at_interval()
-  df = create_prices()
+  create_snapshots_at_interval()
+  # df = create_prices()
