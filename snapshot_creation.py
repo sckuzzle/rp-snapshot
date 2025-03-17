@@ -18,7 +18,7 @@ import json
 from web3 import Web3, HTTPProvider
 import pandas as pd
 
-LATEST_INTERVAL = 27
+LATEST_INTERVAL = 33
 
 def get_network_df():
   df = pd.read_csv('staking_snapshot.csv')
@@ -31,7 +31,7 @@ def get_index():
 def create_snapshots_at_interval():
   """wrapper to loop through and create a staking snapshot at each interval point specified"""
   RocketStorage, RocketNodeManager, RocketNodeStaking, RocketNetworkPrices, RocketTokenRPL, RocketRewardsPool, RocketRETH, wETH = get_contracts('latest')
-  for interval in range(27, LATEST_INTERVAL+1):
+  for interval in range(33, LATEST_INTERVAL+1):
     block_id = RocketRewardsPool.functions.getClaimIntervalExecutionBlock(interval).call()
     print(f'{interval=} {block_id=}')
     create_snapshot(block_id)
@@ -64,14 +64,16 @@ def create_index():
 def get_contracts(block_id = 'latest'):
   """Finds the address for each contract, fetches the abi for that contract, and returns web3 contract objects at the given block_id"""
 
-  if block_id =='latest':  
-    NODE_IP = os.environ['node_ip']
+  # if block_id =='latest':  
+  #   NODE_IP = os.environ['node_ip']
     
-    CLIENT = Web3(Web3.HTTPProvider(f'http://{NODE_IP}:8545'))
-  else:
-    ARCHIVE_NODE_IP = os.environ['archive_node_ip']
+  #   CLIENT = Web3(Web3.HTTPProvider(f'http://{NODE_IP}:8545'))
+  # else:
+  #   ARCHIVE_NODE_IP = os.environ['archive_node_ip']
     
-    CLIENT = Web3(Web3.HTTPProvider(f'{ARCHIVE_NODE_IP}'))
+  #   CLIENT = Web3(Web3.HTTPProvider(f'{ARCHIVE_NODE_IP}'))
+  ARCHIVE_NODE_IP = os.environ['archive_node_ip']
+  CLIENT = Web3(Web3.HTTPProvider(f'{ARCHIVE_NODE_IP}'))
   API_KEY = os.environ['api_key']
   
   
@@ -188,7 +190,7 @@ def create_prices():
   """Gathers RPL ratio at the beginning of each interval and saves it to a csv"""
   prices = {}
   RocketStorage, RocketNodeManager, RocketNodeStaking, RocketNetworkPrices, RocketTokenRPL, RocketRewardsPool, RocketRETH, wETH = get_contracts('latest')
-  for interval in range(0, 28):
+  for interval in range(0, LATEST_INTERVAL+1):
     print(f'{interval=}')
     block_id = RocketRewardsPool.functions.getClaimIntervalExecutionBlock(interval).call()
     time.sleep(1.5)
